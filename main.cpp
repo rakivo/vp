@@ -5,9 +5,9 @@
 
 #include <raylib.h>
 
+#include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <tbb/global_control.h>
-#include <tbb/parallel_for.h>
 
 extern "C" {
   #include <libavutil/opt.h>
@@ -183,8 +183,10 @@ int main(const int argc, const char *argv[])
         }
 
         uint8_t **converted_samples = NULL;
-        int max_dst_nb_samples = av_rescale_rnd(audio_frame->nb_samples, audio_ctx->sample_rate,
-                                                audio_ctx->sample_rate, AV_ROUND_UP);
+        int max_dst_nb_samples = av_rescale_rnd(audio_frame->nb_samples,
+                                                audio_ctx->sample_rate,
+                                                audio_ctx->sample_rate,
+                                                AV_ROUND_UP);
 
         av_samples_alloc_array_and_samples(&converted_samples, NULL,
                                            out_channel_layout.nb_channels,
@@ -192,11 +194,11 @@ int main(const int argc, const char *argv[])
 
         int converted_samples_count = swr_convert(swr_ctx, converted_samples,
                                                   max_dst_nb_samples,
-                                                  (const uint8_t **)audio_frame->data,
+                                                  (const uint8_t **) audio_frame->data,
                                                   audio_frame->nb_samples);
 
         if (converted_samples_count > 0) {
-          int16_t *pcm_data = reinterpret_cast<int16_t *>(converted_samples[0]);
+          int16_t *pcm_data = (int16_t *) converted_samples[0];
           audio_buffer.insert(audio_buffer.end(), pcm_data,
                               pcm_data
                               + converted_samples_count
@@ -227,12 +229,21 @@ int main(const int argc, const char *argv[])
 
         uint8_t *buf = (uint8_t *) av_malloc(buf_size);
         AVFrame *rgb_frame = av_frame_alloc();
-        av_image_fill_arrays(rgb_frame->data, rgb_frame->linesize, buf,
-                             AV_PIX_FMT_RGB24, codec_ctx->width,
-                             codec_ctx->height, 32);
+        av_image_fill_arrays(rgb_frame->data,
+                             rgb_frame->linesize,
+                             buf,
+                             AV_PIX_FMT_RGB24,
+                             codec_ctx->width,
+                             codec_ctx->height,
+                             32);
 
-        sws_scale(sws_ctx, frame->data, frame->linesize, 0, codec_ctx->height,
-                  rgb_frame->data, rgb_frame->linesize);
+        sws_scale(sws_ctx,
+                  frame->data,
+                  frame->linesize,
+                  0,
+                  codec_ctx->height,
+                  rgb_frame->data,
+                  rgb_frame->linesize);
 
         rgb_frames[i] = rgb_frame;
       }
@@ -254,8 +265,11 @@ int main(const int argc, const char *argv[])
           if (abs(audio_buffer[i]) < 100) audio_buffer[i] = 0;
         }});
 
-  Data_And_Size *wav = Pcm2Wav(audio_buffer.data(), audio_buffer.size() * sizeof(int16_t),
-                               out_channel_layout.nb_channels, audio_ctx->sample_rate, 16);
+  Data_And_Size *wav = Pcm2Wav((const unsigned char *) audio_buffer.data(),
+                               audio_buffer.size() * sizeof(int16_t),
+                               out_channel_layout.nb_channels,
+                               audio_ctx->sample_rate,
+                               16);
 
   if (wav == NULL) {
     fprintf(stderr, "Failed to convert PCM to WAV\n");
@@ -266,7 +280,7 @@ int main(const int argc, const char *argv[])
   printf("Sample Rate: %d\n", audio_ctx->sample_rate);
   printf("Channels: %d\n", out_channel_layout.nb_channels);
 
-  Music music = LoadMusicStreamFromMemory(".wav", (const unsigned char *)wav->data, wav->size);
+  Music music = LoadMusicStreamFromMemory(".wav", wav->data, wav->size);
   PlayMusicStream(music);
 
   size_t curr_frame = 0;
@@ -289,9 +303,12 @@ int main(const int argc, const char *argv[])
     UnloadTexture(texture);
   }
 
-  for (auto &rgb_frame: rgb_frames) {
-    av_frame_free(&rgb_frame);
-  }
+  tbb::parallel_for(
+    tbb::blocked_range<size_t>(0, rgb_frames.size()),
+      [&](const tbb::blocked_range<size_t> &range) {
+        for (size_t i = range.begin(); i < range.end(); ++i) {
+          av_frame_free(&rgb_frames[i]);
+        }});
 
   CloseWindow();
 
