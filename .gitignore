@@ -1,0 +1,6 @@
+target
+*.lock
+*.toml
+*.mp4
+*.rs
+vp
