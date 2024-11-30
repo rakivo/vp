@@ -48,17 +48,17 @@ static void cleanup(void)
   for (size_t i = 0; i < frames_count; ++i) {
     UnloadTexture(textures[i]);
   }
-	if (audio_frame) av_frame_free(&audio_frame);
-	if (filtered_frame) av_frame_free(&filtered_frame);
-	if (audio_ctx) avcodec_free_context(&audio_ctx);
-	if (codec_ctx) avcodec_free_context(&codec_ctx);
-	if (sws_ctx) sws_freeContext(sws_ctx);
-	if (swr_ctx) swr_free(&swr_ctx);
-	if (buffersrc_ctx) avfilter_free(buffersrc_ctx);
-	if (buffersink_ctx) avfilter_free(buffersink_ctx);
-	if (filter_graph) avfilter_graph_free(&filter_graph);
-	if (format_ctx) avformat_close_input(&format_ctx);
-	if (options) av_dict_free(&options);
+  if (audio_frame) av_frame_free(&audio_frame);
+  if (filtered_frame) av_frame_free(&filtered_frame);
+  if (audio_ctx) avcodec_free_context(&audio_ctx);
+  if (codec_ctx) avcodec_free_context(&codec_ctx);
+  if (sws_ctx) sws_freeContext(sws_ctx);
+  if (swr_ctx) swr_free(&swr_ctx);
+  if (buffersrc_ctx) avfilter_free(buffersrc_ctx);
+  if (buffersink_ctx) avfilter_free(buffersink_ctx);
+  if (filter_graph) avfilter_graph_free(&filter_graph);
+  if (format_ctx) avformat_close_input(&format_ctx);
+  if (options) av_dict_free(&options);
 }
 
 Texture2D TextureFromFrame(AVFrame *frame, int width, int height)
@@ -193,12 +193,12 @@ int main(const int argc, const char *argv[])
   options = NULL;
   av_dict_set(&options, "s", "5", 0);
 
-	if (avfilter_graph_create_filter(&noise_filter_ctx, noise_filter,
+  if (avfilter_graph_create_filter(&noise_filter_ctx, noise_filter,
                                    "noise_reduction",
                                    NULL,
                                    options,
                                    filter_graph) < 0)
-	{
+  {
     fprintf(stderr, "could not create noise reduction filter\n");
     creturn(-1);
   }
@@ -283,13 +283,13 @@ int main(const int argc, const char *argv[])
         if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) break;
         if (ret < 0) {
           fprintf(stderr, "error during decoding\n");
-					av_packet_unref(&packet);
+          av_packet_unref(&packet);
           creturn(-1);
         }
 
         if (av_buffersrc_add_frame(buffersrc_ctx, audio_frame) < 0) {
           fprintf(stderr, "error sending frame to filter\n");
-					av_packet_unref(&packet);
+          av_packet_unref(&packet);
           creturn(-1);
         }
 
@@ -316,9 +316,9 @@ int main(const int argc, const char *argv[])
           if (converted_samples_count > 0) {
             int16_t *pcm_data = (int16_t *) converted_samples[0];
             audio_buffer.insert(audio_buffer.end(), pcm_data,
-																pcm_data
-																+ converted_samples_count
-																* out_channel_layout.nb_channels);
+                                pcm_data
+                                + converted_samples_count
+                                * out_channel_layout.nb_channels);
           }
 
           if (converted_samples) {
@@ -368,7 +368,7 @@ int main(const int argc, const char *argv[])
       }
     });
 
-	SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED);
+  SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED);
   InitWindow(800, 600, "vp");
   InitAudioDevice();
   SetTargetFPS(30);
@@ -379,10 +379,10 @@ int main(const int argc, const char *argv[])
   }
 
   Data_And_Size *wav = Pcm2Wav((const unsigned char *) audio_buffer.data(),
-															 audio_buffer.size() * sizeof(int16_t),
-															 out_channel_layout.nb_channels,
-															 audio_ctx->sample_rate,
-															 16);
+                               audio_buffer.size() * sizeof(int16_t),
+                               out_channel_layout.nb_channels,
+                               audio_ctx->sample_rate,
+                               16);
 
   if (wav == NULL) {
     fprintf(stderr, "failed to convert PCM to WAV\n");
@@ -403,19 +403,19 @@ int main(const int argc, const char *argv[])
   while (!WindowShouldClose()) {
     UpdateMusicStream(music);
     BeginDrawing();
-		{
-	    ClearBackground(BLACK);
+    {
+      ClearBackground(BLACK);
 
       if (frames_exist) {
         DrawTexture(textures[curr_frame], 0, 0, WHITE);
         curr_frame = (curr_frame + 1) % frames_count;
       }
-		}
+    }
     EndDrawing();
   }
 
-	cleanup();
-	CloseWindow();
+  cleanup();
+  CloseWindow();
 
   return 0;
 }
