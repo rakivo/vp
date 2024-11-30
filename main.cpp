@@ -44,8 +44,8 @@ static AVFilterGraph *filter_graph = NULL;
 static AVDictionary *options = NULL;
 static AVFrame *audio_frame = NULL;
 static AVFrame *filtered_frame = NULL;
-static Music music = {0};
 static Texture2D *textures = NULL;
+static Music music = {0};
 static size_t frames_count = 0;
 
 static void cleanup(void)
@@ -391,6 +391,9 @@ int main(const int argc, const char *argv[])
   const float frame_rate = (float) fps.num / fps.den;
   const int64_t duration = format_ctx->duration / AV_TIME_BASE; // in seconds
 
+  frames_count = rgb_frames.size();
+
+  printf("total frames count: %zu\n", frames_count);
   printf("video duration: %li seconds\n", duration);
   printf("video frame rate: %f\n", frame_rate);
 
@@ -423,7 +426,6 @@ int main(const int argc, const char *argv[])
   music = LoadMusicStreamFromMemory(".wav", wav->data, wav->size);
 
   size_t curr_frame = 0;
-  frames_count = rgb_frames.size();
   const bool frames_exist = frames_count != 0;
 
   const int m = GetCurrentMonitor();
