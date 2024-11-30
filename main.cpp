@@ -386,7 +386,7 @@ int main(const int argc, const char *argv[])
   const float frame_rate = (float) fps.num / fps.den;
   const int64_t duration = format_ctx->duration / AV_TIME_BASE; // in seconds
 
-  printf("video duration: %li\n", duration);
+  printf("video duration: %li seconds\n", duration);
   printf("video frame rate: %f\n", frame_rate);
 
   SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED);
