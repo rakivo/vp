@@ -175,10 +175,10 @@ Data_And_Size *Pcm2Wav(const unsigned char *pcm_data,
   }
 
   // Copy WAV header to the beginning of the output data
-  memcpy(output->data, pWavContainer, wav_header_size);
+  memmove(output->data, pWavContainer, wav_header_size);
 
   // Copy PCM data to the output data after the header
-  memcpy(output->data + wav_header_size, pcm_data, pcm_size);
+  memmove(output->data + wav_header_size, pcm_data, pcm_size);
 
   // Set the size of the returned data
   output->size = total_size;

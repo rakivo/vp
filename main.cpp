@@ -5,6 +5,7 @@
 #include <thread>
 
 #include <raylib.h>
+#include <raymath.h>
 
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
@@ -29,6 +30,8 @@ extern "C" {
 
 #define creturn(ret_) { cleanup(); return ret_; }
 
+static constexpr Color BACKGROUND_COLOR = {19, 19, 19, 255};
+
 static AVFormatContext *format_ctx = NULL;
 static AVCodecContext *codec_ctx = NULL;
 static AVCodecContext *audio_ctx = NULL;
@@ -40,14 +43,19 @@ static AVFilterGraph *filter_graph = NULL;
 static AVDictionary *options = NULL;
 static AVFrame *audio_frame = NULL;
 static AVFrame *filtered_frame = NULL;
+static Music music = {0};
 static Texture2D *textures = NULL;
 static size_t frames_count = 0;
 
 static void cleanup(void)
 {
-  for (size_t i = 0; i < frames_count; ++i) {
-    UnloadTexture(textures[i]);
+  if (textures) {
+    for (size_t i = 0; i < frames_count; ++i) {
+      UnloadTexture(textures[i]);
+    }
+    free(textures);
   }
+  if (IsMusicValid(music)) UnloadMusicStream(music);
   if (audio_frame) av_frame_free(&audio_frame);
   if (filtered_frame) av_frame_free(&filtered_frame);
   if (audio_ctx) avcodec_free_context(&audio_ctx);
@@ -87,7 +95,9 @@ int main(const int argc, const char *argv[])
 
   const char *file_path = argv[1];
 
-  format_ctx = NULL;
+  SetTraceLogLevel(LOG_ERROR);
+  av_log_set_level(AV_LOG_ERROR); 
+
   if (avformat_open_input(&format_ctx, file_path, NULL, NULL) != 0) {
     fprintf(stderr, "could not open video file\n");
     creturn(-1);
@@ -135,7 +145,7 @@ int main(const int argc, const char *argv[])
   AVCodecParameters *audio_codec_par = format_ctx->streams[audio_stream_index]->codecpar;
   const AVCodec *audio_decoder = avcodec_find_decoder(audio_codec_par->codec_id);
   if (!audio_decoder) {
-    fprintf(stderr, "Audio codec not supported\n");
+    fprintf(stderr, "audio codec not supported\n");
     creturn(-1);
   }
 
@@ -190,7 +200,6 @@ int main(const int argc, const char *argv[])
   AVFilterContext *noise_filter_ctx = NULL;
   const AVFilter *noise_filter = avfilter_get_by_name("anlmdn");
 
-  options = NULL;
   av_dict_set(&options, "s", "5", 0);
 
   if (avfilter_graph_create_filter(&noise_filter_ctx, noise_filter,
@@ -252,7 +261,11 @@ int main(const int argc, const char *argv[])
     creturn(-1);
   }
 
+  const AVStream *video_stream = format_ctx->streams[video_stream_index];
+
   std::vector<AVFrame *> frames = {};
+  frames.reserve(video_stream->nb_frames);
+
   std::vector<int16_t> audio_buffer = {};
 
   audio_frame = av_frame_alloc();
@@ -333,6 +346,7 @@ int main(const int argc, const char *argv[])
     av_packet_unref(&packet);
   }
 
+  // `rgb_frames`' data will be moved into `textures` and freed later
   std::vector<AVFrame *> rgb_frames(frames.size());
 
   tbb::parallel_for(
@@ -368,16 +382,24 @@ int main(const int argc, const char *argv[])
       }
     });
 
+  const AVRational fps = video_stream->avg_frame_rate;
+  const float frame_rate = (float) fps.num / fps.den;
+  const int64_t duration = format_ctx->duration / AV_TIME_BASE; // in seconds
+
+  printf("video duration: %li\n", duration);
+  printf("video frame rate: %f\n", frame_rate);
+
   SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_MAXIMIZED);
   InitWindow(800, 600, "vp");
   InitAudioDevice();
-  SetTargetFPS(30);
+  SetTargetFPS(frame_rate);
 
   textures = (Texture2D *) malloc(sizeof(Texture2D) * rgb_frames.size());
   for (size_t i = 0; i < rgb_frames.size(); ++i) {
     textures[i] = TextureFromFrame(rgb_frames[i], codec_ctx->width, codec_ctx->height);
   }
 
+  // audio_buffer data moved into here
   Data_And_Size *wav = Pcm2Wav((const unsigned char *) audio_buffer.data(),
                                audio_buffer.size() * sizeof(int16_t),
                                out_channel_layout.nb_channels,
@@ -389,30 +411,37 @@ int main(const int argc, const char *argv[])
     creturn(-1);
   }
 
-  printf("Audio Buffer Size: %zu samples\n", audio_buffer.size());
-  printf("Sample Rate: %d\n", audio_ctx->sample_rate);
-  printf("Channels: %d\n", out_channel_layout.nb_channels);
+  printf("audio buffer size: %zu samples\n", audio_buffer.size());
+  printf("audio sample rate: %d\n", audio_ctx->sample_rate);
+  printf("audio channels: %d\n", out_channel_layout.nb_channels);
 
-  Music music = LoadMusicStreamFromMemory(".wav", wav->data, wav->size);
-  PlayMusicStream(music);
+  music = LoadMusicStreamFromMemory(".wav", wav->data, wav->size);
 
   size_t curr_frame = 0;
   frames_count = rgb_frames.size();
-  bool frames_exist = frames_count != 0;
+  const bool frames_exist = frames_count != 0;
 
+  const int m = GetCurrentMonitor();
+  const Vector2 md(GetMonitorWidth(m), GetMonitorHeight(m));
+  const Vector2 vd(codec_ctx->width, codec_ctx->height);
+  const Vector2 cvd((md.x - vd.x) / 2, (md.y - vd.y) / 2);
+
+  PlayMusicStream(music);
   while (!WindowShouldClose()) {
     UpdateMusicStream(music);
     BeginDrawing();
     {
-      ClearBackground(BLACK);
+      ClearBackground(BACKGROUND_COLOR);
 
       if (frames_exist) {
-        DrawTexture(textures[curr_frame], 0, 0, WHITE);
+        DrawTextureEx(textures[curr_frame], cvd, 0.0, 1.0, WHITE);
         curr_frame = (curr_frame + 1) % frames_count;
       }
     }
     EndDrawing();
   }
+
+  StopMusicStream(music);
 
   cleanup();
   CloseWindow();
