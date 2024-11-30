@@ -1,7 +1,7 @@
 CC := g++
 BIN := vp
-CLIBS := -lraylib -lavformat -lavcodec -lavutil -lswscale -ltbb -lswresample
-WFLAGS := -Wall -Wextra -Wpedantic -Wswitch-enum
+CLIBS := -lraylib -lavformat -lavcodec -lavutil -lswscale -ltbb -lswresample -lavfilter
+WFLAGS := -Wall -Wextra -Wpedantic -Wswitch-enum -Wno-missing-field-initializers
 CFLAGS := -std=c++20 -O3 -g
 
 $(BIN): main.cpp
