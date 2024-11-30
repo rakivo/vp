@@ -33,6 +33,7 @@ extern "C" {
 static constexpr Color BACKGROUND_COLOR = {19, 19, 19, 255};
 
 static AVFormatContext *format_ctx = NULL;
+static AVDictionary *codec_options = NULL;
 static AVCodecContext *codec_ctx = NULL;
 static AVCodecContext *audio_ctx = NULL;
 static SwsContext *sws_ctx = NULL;
@@ -66,6 +67,7 @@ static void cleanup(void)
   if (buffersink_ctx) avfilter_free(buffersink_ctx);
   if (filter_graph) avfilter_graph_free(&filter_graph);
   if (format_ctx) avformat_close_input(&format_ctx);
+  if (codec_options) av_dict_free(&codec_options);
   if (options) av_dict_free(&options);
 }
 
@@ -134,7 +136,10 @@ int main(const int argc, const char *argv[])
 
   codec_ctx = avcodec_alloc_context3(decoder);
   avcodec_parameters_to_context(codec_ctx, codec_par);
-  avcodec_open2(codec_ctx, decoder, NULL);
+
+  av_dict_set(&codec_options, "hwaccel", "vaapi", 0);
+  av_dict_set(&codec_options, "hwaccel_device", "/dev/dri/renderD128", 0);
+  avcodec_open2(codec_ctx, decoder, &codec_options);
 
   sws_ctx = sws_getContext(codec_ctx->width, codec_ctx->height,
                            codec_ctx->pix_fmt,
@@ -448,3 +453,7 @@ int main(const int argc, const char *argv[])
 
   return 0;
 }
+
+/* TODO:
+  1. Process frames and samples in separate thread and play them straight up when some of them is processed.
+*/
