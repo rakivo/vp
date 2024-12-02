@@ -45,7 +45,7 @@ static AVDictionary *options = NULL;
 static AVFrame *audio_frame = NULL;
 static AVFrame *filtered_frame = NULL;
 static Texture2D *textures = NULL;
-static Music music = {0};
+static Music audio = {0};
 static size_t frames_count = 0;
 
 static void cleanup(void)
@@ -56,7 +56,7 @@ static void cleanup(void)
     }
     free(textures);
   }
-  if (IsMusicValid(music)) UnloadMusicStream(music);
+  if (IsMusicValid(audio)) UnloadMusicStream(audio);
   if (audio_frame) av_frame_free(&audio_frame);
   if (filtered_frame) av_frame_free(&filtered_frame);
   if (audio_ctx) avcodec_free_context(&audio_ctx);
@@ -423,7 +423,7 @@ int main(const int argc, const char *argv[])
   printf("audio sample rate: %d\n", audio_ctx->sample_rate);
   printf("audio channels: %d\n", out_channel_layout.nb_channels);
 
-  music = LoadMusicStreamFromMemory(".wav", wav->data, wav->size);
+  audio = LoadMusicStreamFromMemory(".wav", wav->data, wav->size);
 
   size_t curr_frame = 0;
   const bool frames_exist = frames_count != 0;
@@ -433,9 +433,9 @@ int main(const int argc, const char *argv[])
   const Vector2 vd(codec_ctx->width, codec_ctx->height);
   const Vector2 cvd((md.x - vd.x) / 2, (md.y - vd.y) / 2);
 
-  PlayMusicStream(music);
+  PlayMusicStream(audio);
   while (!WindowShouldClose()) {
-    UpdateMusicStream(music);
+    UpdateMusicStream(audio);
     BeginDrawing();
     {
       ClearBackground(BACKGROUND_COLOR);
@@ -448,7 +448,7 @@ int main(const int argc, const char *argv[])
     EndDrawing();
   }
 
-  StopMusicStream(music);
+  StopMusicStream(audio);
 
   cleanup();
   CloseWindow();
