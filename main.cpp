@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <assert.h>
+#include <stdint.h>
 #include <stdbool.h>
 
 #include <vector>
@@ -30,6 +32,7 @@ extern "C" {
 
 #define creturn(ret_) { cleanup(); return ret_; }
 
+static constexpr int SEEK_STEP = 5;
 static constexpr Color BACKGROUND_COLOR = {19, 19, 19, 255};
 
 static AVFormatContext *format_ctx = NULL;
@@ -47,6 +50,13 @@ static AVFrame *filtered_frame = NULL;
 static Texture2D *textures = NULL;
 static Music audio = {0};
 static size_t frames_count = 0;
+static size_t curr_frame = 0;
+static float frame_rate = 0.0f;
+static int64_t duration = 0;
+
+namespace vp {
+  static bool pause = false;
+}
 
 static void cleanup(void)
 {
@@ -82,6 +92,40 @@ Texture2D TextureFromFrame(AVFrame *frame, int width, int height)
   };
 
   return LoadTextureFromImage(img);
+}
+
+static inline int64_t seek(int step)
+{
+  return curr_frame + (step * frame_rate);
+}
+
+void handle_input(void)
+{
+  if (IsKeyPressed(KEY_RIGHT)) {
+    const size_t _next_frame = (size_t) seek(SEEK_STEP);
+    size_t next_frame = _next_frame;
+    if (_next_frame >= frames_count) {
+      assert(frames_count > 1);
+      next_frame = frames_count - 1;
+    }
+    curr_frame = next_frame;
+    SeekMusicStream(audio, next_frame / frame_rate);
+  } else if (IsKeyPressed(KEY_LEFT)) {
+    const int64_t _next_frame = seek(-SEEK_STEP);
+    size_t next_frame = 0;
+    if (_next_frame >= 0) {
+      next_frame = (size_t) _next_frame;
+    }
+    curr_frame = next_frame;
+    SeekMusicStream(audio, next_frame / frame_rate);
+  } else if (IsKeyPressed(KEY_SPACE)) {
+    vp::pause = !vp::pause;
+    if (vp::pause) {
+      PauseMusicStream(audio);
+    } else {
+      ResumeMusicStream(audio);
+    }
+  }
 }
 
 int main(const int argc, const char *argv[])
@@ -388,8 +432,8 @@ int main(const int argc, const char *argv[])
     });
 
   const AVRational fps = video_stream->avg_frame_rate;
-  const float frame_rate = (float) fps.num / fps.den;
-  const int64_t duration = format_ctx->duration / AV_TIME_BASE; // in seconds
+  frame_rate = (float) fps.num / fps.den;
+  duration = format_ctx->duration / AV_TIME_BASE; // in seconds
 
   frames_count = rgb_frames.size();
 
@@ -409,6 +453,7 @@ int main(const int argc, const char *argv[])
 
   // audio_buffer data moved into here
   Data_And_Size *wav = Pcm2Wav((const unsigned char *) audio_buffer.data(),
+
                                audio_buffer.size() * sizeof(int16_t),
                                out_channel_layout.nb_channels,
                                audio_ctx->sample_rate,
@@ -425,7 +470,6 @@ int main(const int argc, const char *argv[])
 
   audio = LoadMusicStreamFromMemory(".wav", wav->data, wav->size);
 
-  size_t curr_frame = 0;
   const bool frames_exist = frames_count != 0;
 
   const int m = GetCurrentMonitor();
@@ -435,6 +479,7 @@ int main(const int argc, const char *argv[])
 
   PlayMusicStream(audio);
   while (!WindowShouldClose()) {
+    handle_input();
     UpdateMusicStream(audio);
     BeginDrawing();
     {
@@ -442,7 +487,9 @@ int main(const int argc, const char *argv[])
 
       if (frames_exist) {
         DrawTextureEx(textures[curr_frame], cvd, 0.0, 1.0, WHITE);
-        curr_frame = (curr_frame + 1) % frames_count;
+        if (!vp::pause) {
+          curr_frame = (curr_frame + 1) % frames_count;
+        }
       }
     }
     EndDrawing();
