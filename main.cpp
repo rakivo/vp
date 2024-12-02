@@ -311,11 +311,13 @@ int main(const int argc, const char *argv[])
   }
 
   const AVStream *video_stream = format_ctx->streams[video_stream_index];
+  const AVStream *audio_stream = format_ctx->streams[audio_stream_index];
 
   std::vector<AVFrame *> frames = {};
   frames.reserve(video_stream->nb_frames);
 
   std::vector<int16_t> audio_buffer = {};
+  audio_buffer.reserve(audio_stream->nb_frames * out_channel_layout.nb_channels * 150);
 
   audio_frame = av_frame_alloc();
   filtered_frame = av_frame_alloc();
@@ -374,7 +376,6 @@ int main(const int argc, const char *argv[])
                                                     max_dst_nb_samples,
                                                     (const uint8_t **) filtered_frame->data,
                                                     filtered_frame->nb_samples);
-
           if (converted_samples_count > 0) {
             int16_t *pcm_data = (int16_t *) converted_samples[0];
             audio_buffer.insert(audio_buffer.end(), pcm_data,
